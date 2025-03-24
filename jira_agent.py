@@ -15,7 +15,14 @@ llm = ChatGoogleGenerativeAI(
     google_api_key=GEM_API_KEY,
     temperature=0.1
 )
-jira = JiraAPIWrapper()
+
+jira = JiraAPIWrapper(
+    jira_username=JIRA_USERNAME,
+    jira_api_token=os.environ.get("JIRA_API_TOKEN"),
+    jira_instance_url=JIRA_INSTANCE_URL,
+    project_key=PROJECT_KEY
+)
+
 toolkit = JiraToolkit.from_jira_api_wrapper(jira)
 
 agent = initialize_agent(
