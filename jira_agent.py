@@ -30,7 +30,6 @@ jira = JiraAPIWrapper(
     jira_username=JIRA_USERNAME,
     jira_api_token=JIRA_API_TOKEN,
     jira_instance_url=JIRA_INSTANCE_URL,
-    project_key=PROJECT_KEY,
     jira_cloud=(JIRA_CLOUD.lower() == "true")
 )
 
