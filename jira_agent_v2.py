@@ -20,7 +20,7 @@ if missing_vars:
 
 # Initialize LLM
 model = ChatGoogleGenerativeAI(
-    model="gemini-2.5-pro-exp-03-25", # Using Gemini 2.5 Pro experimental
+    model="gemini-2.5-exp-03-25",
     google_api_key=GEM_API_KEY,
     temperature=0.1
 )
@@ -33,10 +33,55 @@ jira = JiraAPIWrapper(
     jira_cloud=(JIRA_CLOUD.lower() == "true")
 )
 
-# Define custom tools using @tool decorator
+# Create a custom wrapper around the JiraAPIWrapper that provides the methods we need
+class CustomJiraWrapper:
+    def __init__(self, jira_wrapper):
+        self.jira = jira_wrapper
+    
+    def create_new_issue(self, project_key, summary, description=""):
+        """Create a new Jira issue using the run method."""
+        try:
+            # Directly construct the input string expected by the run method
+            input_str = f"Make a new issue in project {project_key} with summary '{summary}'"
+            if description:
+                input_str += f" and description '{description}'"
+            
+            result = self.jira.run(input_str)
+            return f"Created issue: {result}"
+        except Exception as e:
+            return f"Error creating issue: {str(e)}"
+    
+    def get_all_project_issues(self, project_key):
+        """Get all issues for a project using the run method."""
+        try:
+            input_str = f"Find all issues in project {project_key}"
+            return self.jira.run(input_str)
+        except Exception as e:
+            return f"Error getting issues: {str(e)}"
+    
+    def search_jql(self, jql_query):
+        """Search issues using JQL via the run method."""
+        try:
+            input_str = f"Search for issues with JQL: {jql_query}"
+            return self.jira.run(input_str)
+        except Exception as e:
+            return f"Error searching issues: {str(e)}"
+    
+    def get_issue_by_key(self, issue_key):
+        """Get a specific issue by key using the run method."""
+        try:
+            input_str = f"Get issue {issue_key}"
+            return self.jira.run(input_str)
+        except Exception as e:
+            return f"Error getting issue: {str(e)}"
+
+# Create the custom wrapper
+custom_jira = CustomJiraWrapper(jira)
+
+# Define tools using @tool decorator
 @tool
 def create_issue(input_str: str) -> str:
-    """Create a new issue in Jira.
+    """Create a new Jira issue.
     Input should be in the format: project_key, summary, description
     separated by | characters."""
     parts = input_str.split('|')
@@ -47,41 +92,25 @@ def create_issue(input_str: str) -> str:
     summary = parts[1].strip()
     description = parts[2].strip() if len(parts) > 2 else ""
     
-    try:
-        issue = jira.create_issue(project_key, summary, description)
-        return f"Successfully created issue {issue['key']}: {issue['self']}"
-    except Exception as e:
-        return f"Error creating issue: {str(e)}"
+    return custom_jira.create_new_issue(project_key, summary, description)
 
 @tool
-def get_project_issues(project_key: str) -> str:
-    """Get all issues for a specific project."""
-    try:
-        issues = jira.get_project_issues(project_key)
-        return str(issues)
-    except Exception as e:
-        return f"Error retrieving issues: {str(e)}"
+def list_project_issues(project_key: str) -> str:
+    """List all issues for a specific project."""
+    return custom_jira.get_all_project_issues(project_key)
 
 @tool
-def search_issues(query: str) -> str:
-    """Search for issues using JQL (Jira Query Language)."""
-    try:
-        issues = jira.search_issues(query)
-        return str(issues)
-    except Exception as e:
-        return f"Error searching issues: {str(e)}"
+def run_jql_query(query: str) -> str:
+    """Run a JQL (Jira Query Language) query to search for issues."""
+    return custom_jira.search_jql(query)
 
 @tool
 def get_issue(issue_key: str) -> str:
     """Get details of a specific issue by its key."""
-    try:
-        issue = jira.get_issue(issue_key)
-        return str(issue)
-    except Exception as e:
-        return f"Error retrieving issue: {str(e)}"
+    return custom_jira.get_issue_by_key(issue_key)
 
 # Define the tools list
-tools = [create_issue, get_project_issues, search_issues, get_issue]
+tools = [create_issue, list_project_issues, run_jql_query, get_issue]
 
 # Create the ReAct agent
 jira_agent = create_react_agent(model, tools)
@@ -107,10 +136,10 @@ def create_jira_issue(summary, description=None, project=PROJECT_KEY):
 # Example usage
 if __name__ == "__main__":
     # Example 1: Create a new issue
-    result = create_jira_issue("AI Made This!!! Make more fried rice", "Remember to make more fried rice.")
+    result = create_jira_issue("Make more fried rice", "Remember to make more fried rice.")
     print(result)
     
     # Example 2: Direct agent interaction
-    query = f"Show me all open issues in project {PROJECT_KEY}"
+    query = f"Show me all issues in project {PROJECT_KEY}"
     result = interact_with_jira(query)
     print(result)
